@@ -117,10 +117,18 @@ lib/Store.ps1         data.json, duplicates, done/reopen rules, assign
 tests/Run-Tests.ps1   automatic checks
 people.example.json   copy to people.json and fill in
 notes/                sample meeting notes
-docs/                 sample output and conversation logs
+docs/                 project documents (see below), sample output, conversation logs
 CLAUDE.md             instructions for Claude Code
 .claude/              Claude Code skill and settings for this project
 ```
+
+## Project documents
+
+- [Requirements specification](docs/requirements-specification.md)
+- [Test cases](docs/test-cases.md)
+- [Implementation document](docs/implementation.md)
+- [Sample output](docs/sample-output.md)
+- [Claude Code skill](.claude/skills/actiontrack/SKILL.md) and [CLAUDE.md](CLAUDE.md)
 
 ## Tests
 
