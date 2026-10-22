@@ -1127,10 +1127,10 @@ The draft file is written (4 overdue items for Priya Nair). Now creating it as a
 
 ```
 Gmail create_draft (subject and body as above, no recipient) ->
-{"id":"r-6208475184935279614","messageId":"1a162eecbe6d7a09","threadId":"1a162eecbe6d7a09","viewUrl":"https://mail.google.com/mail/?authuser=sapna.sanarkar@coditas.com#all?compose=thread-f:1879741488815766025%2Bmsg-a:r-6208475184935279614"}
+{"id":"r-6208475184935279614","messageId":"1a162eecbe6d7a09","threadId":"1a162eecbe6d7a09","viewUrl":"https://mail.google.com/mail/?authuser=[your-email]#all?compose=thread-f:1879741488815766025%2Bmsg-a:r-6208475184935279614"}
 ```
 
-Priya Nair's follow-up is now a draft in your Gmail. Nothing was sent: [open the draft](https://mail.google.com/mail/?authuser=sapna.sanarkar@coditas.com#all?compose=thread-f:1879741488815766025%2Bmsg-a:r-6208475184935279614)
+Priya Nair's follow-up is now a draft in your Gmail. Nothing was sent: [open the draft](https://mail.google.com/mail/?authuser=[your-email]#all?compose=thread-f:1879741488815766025%2Bmsg-a:r-6208475184935279614)
 
 **What's in it:** 4 items, all overdue as of today (22 Oct):
 - Prepare the renewal one-pager (was due 2 Oct)

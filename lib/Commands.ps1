@@ -1,4 +1,4 @@
-# The four commands: ingest, list, done, followup.
+# The commands: ingest, list, done, assign, followup.
 
 . (Join-Path $PSScriptRoot 'Dates.ps1')
 . (Join-Path $PSScriptRoot 'Owners.ps1')
@@ -11,6 +11,7 @@ actiontrack - track action items from meeting notes
   actiontrack ingest <folder>
   actiontrack list [--owner <name>] [--status open|done|overdue] [--due-before <yyyy-mm-dd>] [--today <yyyy-mm-dd>]
   actiontrack done <id>
+  actiontrack assign <id> <owner>
   actiontrack followup <owner> [--dry-run] [--today <yyyy-mm-dd>]
 
 "Today" comes from --today, else the ACTIONTRACK_TODAY variable, else the computer's date.
@@ -65,7 +66,6 @@ function Invoke-Ingest([string[]]$Positional) {
     $everyone = @($notes | ForEach-Object { $_.Attendees } | Sort-Object -Unique)
     $store = Read-Store
     $counts = @{ new = 0; updated = 0; same = 0 }
-    $needsFix = @{}
     foreach ($note in $notes | Sort-Object Date, File) {
         $meetingDate = ConvertTo-IsoDate $note.Date
         $meeting = "$($note.Title), $meetingDate"
@@ -75,11 +75,12 @@ function Invoke-Ingest([string[]]$Positional) {
                 $owner = Resolve-Owner $name $note.Attendees $everyone
                 $result = Add-Mention $store $owner $split.Task $split.Due $split.DueRaw $raw.Done $meetingDate $meeting $note.File
                 $counts[$result]++
-                if (Test-NeedsOwnerFix $owner) { $needsFix["$owner|$($split.Task)"] = "${owner}: $($split.Task)  ($($note.File))" }
             }
         }
     }
     Save-Store $store
+    $needsFix = @($store.Items | Where-Object { Test-NeedsOwnerFix $_.owner } |
+        ForEach-Object { "[$($_.id)] $($_.owner): $($_.task)  ($($_.sources[-1]))" } | Sort-Object)
 
     Write-Line "Read $($notes.Count) notes from $folder."
     Write-Line "Items: $($counts.new) new, $($counts.updated) updated, $($counts.same) unchanged. Total stored: $($store.Items.Count)."
@@ -100,8 +101,8 @@ function Invoke-Ingest([string[]]$Positional) {
     }
     if ($needsFix.Count) {
         Write-Line ''
-        Write-Line "$($needsFix.Count) item(s) have no clear owner and are never emailed:" 'Yellow'
-        $needsFix.Values | Sort-Object | ForEach-Object { Write-Line "  - $_" 'Yellow' }
+        Write-Line "$($needsFix.Count) item(s) have no clear owner and are never emailed (fix with: actiontrack assign <id> <owner>):" 'Yellow'
+        $needsFix | ForEach-Object { Write-Line "  - $_" 'Yellow' }
     }
     return 0
 }
@@ -163,15 +164,28 @@ function Invoke-Done([string[]]$Positional, $Options) {
     return 0
 }
 
+function Invoke-Assign([string[]]$Positional) {
+    if ($Positional.Count -ne 2 -or $Positional[0] -notmatch '^\d+$') { throw 'usage: actiontrack assign <id> "<owner full name>"' }
+    $store = Read-Store
+    $item = Find-Item $store ([int]$Positional[0])
+    if (-not $item) { throw "no item with id $($Positional[0])" }
+    $owner = Resolve-KnownOwner $store $Positional[1]
+    $old = $item.owner
+    Set-ItemOwner $store $item $owner
+    Save-Store $store
+    Write-Line "Assigned [$($item.id)] $($item.task): $old -> $owner" 'Green'
+    return 0
+}
+
 # "Priya Nair", "priya nair" or "Priya" (if only one Priya has items).
-function Resolve-FollowupOwner($Store, [string]$Name) {
+function Resolve-KnownOwner($Store, [string]$Name) {
     $owners = @($Store.Items | ForEach-Object { $_.owner } | Where-Object { -not (Test-NeedsOwnerFix $_) } | Sort-Object -Unique)
     $exact = @($owners | Where-Object { $_ -ieq $Name })
     if ($exact.Count) { return $exact[0] }
     $byFirst = @($owners | Where-Object { ($_ -split '\s+')[0] -ieq $Name })
     if ($byFirst.Count -eq 1) { return $byFirst[0] }
     if ($byFirst.Count -gt 1) { throw "'$Name' matches $($byFirst -join ' and '). Use the full name in quotes." }
-    throw "no items for '$Name'. Owners: $($owners -join ', ')"
+    throw "'$Name' is not a known owner. Owners: $($owners -join ', ')"
 }
 
 function Get-EmailAddress([string]$Owner) {
@@ -194,7 +208,7 @@ function Invoke-Followup([string[]]$Positional, $Options) {
     if ($Positional.Count -ne 1) { throw 'usage: actiontrack followup <owner> [--dry-run]   (quote names with spaces)' }
     $today = Get-Today $Options
     $store = Read-Store
-    $owner = Resolve-FollowupOwner $store $Positional[0]
+    $owner = Resolve-KnownOwner $store $Positional[0]
 
     $open = @($store.Items | Where-Object { $_.owner -eq $owner -and $_.status -eq 'open' } |
         Sort-Object @{ Expression = { if ($_.due) { $_.due } else { '9999' } } }, @{ Expression = { $_.id } })
@@ -246,7 +260,7 @@ function Invoke-Followup([string[]]$Positional, $Options) {
     $slug = ($owner.ToLowerInvariant() -replace '[^a-z0-9]+', '-').Trim('-')
     $path = Join-Path $dir "$slug.json"
     [IO.File]::WriteAllText($path, (ConvertTo-Json -InputObject $draft -Depth 4), $script:Utf8NoBom)
-    Write-Line "Draft saved to drafts\$slug.json. Nothing was sent." 'Green'
+    Write-Line "Draft saved to drafts/$slug.json. Nothing was sent." 'Green'
     Write-Line 'Next: ask Claude to create the Gmail draft from this file (Gmail "create draft" only).'
     return 0
 }
@@ -273,6 +287,10 @@ function Invoke-ActionTrack([object[]]$ArgList) {
             'done' {
                 $parsed = Get-CommandOptions $rest @('today') @()
                 return Invoke-Done $parsed.Args $parsed.Options
+            }
+            'assign' {
+                $parsed = Get-CommandOptions $rest @() @()
+                return Invoke-Assign $parsed.Args
             }
             'followup' {
                 $parsed = Get-CommandOptions $rest @('today') @('dry-run')

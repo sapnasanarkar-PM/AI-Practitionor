@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "deny": [
+      "mcp__5338ca2c-79f3-4bee-b797-eb1c4e976d02__send_message",
+      "mcp__5338ca2c-79f3-4bee-b797-eb1c4e976d02__reply",
+      "mcp__5338ca2c-79f3-4bee-b797-eb1c4e976d02__forward"
+    ]
+  }
+}

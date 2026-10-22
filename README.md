@@ -13,12 +13,14 @@ From this folder, in PowerShell or Command Prompt:
 .\actiontrack.cmd ingest notes
 .\actiontrack.cmd list --status overdue
 .\actiontrack.cmd done 12
+.\actiontrack.cmd assign 78 "Priya Shah"
 .\actiontrack.cmd followup "Priya Nair" --dry-run
 .\actiontrack.cmd followup "Priya Nair"
 ```
 
 `actiontrack.cmd` runs `actiontrack.ps1` with `-ExecutionPolicy Bypass` for that
 one run only. It does not change the computer's script policy.
+On Mac/Linux, install PowerShell 7 and run `pwsh ./actiontrack.ps1 <command>`.
 
 For email addresses, copy `people.example.json` to `people.json` and fill in real
 addresses. `people.json` is ignored by git.
@@ -30,6 +32,7 @@ addresses. `people.json` is ignored by git.
 | `ingest <folder>` | Reads every `.md` file in the folder and saves the items to `data.json`. Safe to run again: no duplicates are created. Prints which files were skipped and why. |
 | `list` | Shows items. Filters: `--owner <name>` (part of a name is fine, e.g. `Priya`), `--status open\|done\|overdue`, `--due-before <yyyy-mm-dd>`. Overdue items are shown in **red** with the label `OVERDUE`. |
 | `done <id>` | Marks an item done by hand. |
+| `assign <id> "<Full Name>"` | Gives an item with an unclear owner (`Priya (ambiguous)`, `unassigned`) a real owner. The name must already own other items; a unique first name is fine. Re-running `ingest` keeps the new owner. |
 | `followup <owner>` | Builds one email covering the owner's open and overdue items. It writes the email to `drafts/<owner>.json` (to, subject, body). `--dry-run` only prints it. |
 
 **What "today" is:** overdue means *due date is before today*. It is worked out
@@ -91,26 +94,38 @@ it yourself in Gmail.
 - If an item was closed by a note's `[x]` and a **later** meeting lists it as open again, it is reopened.
 - `done <id>` (by hand) **always wins**: no later meeting can reopen it, including on re-ingest.
 - Re-running `ingest` keeps the same IDs and doesn't create duplicates.
+- `assign <id>` changes an item's owner. The item is still matched by the owner written in the notes, so re-ingest updates it instead of creating a new "(ambiguous)" copy.
+
+## Known limitations
+
+- **Unclear Priya/Rahul items need a person.** When both Priya Nair and Priya Shah (or both Rahuls) were in a meeting, or the note has no attendee list, "Priya" can't be resolved. With the sample notes this leaves 6 items marked "(ambiguous)". They're never emailed until you run `assign`.
+- **Vague dates are guesses.** "End of next week", "mid-October", "for November", "from 9 Oct" and "next Tuesday" follow the fixed rules above, which may not be what the speaker meant. A due date that isn't at the end of the line, or is written some other way, is missed and the item has no due date.
+- **The tool doesn't touch Gmail.** `followup` only writes `drafts/<owner>.json`. The Gmail draft is created by Claude Code from that file with the Gmail connector's "create draft" tool. Running `followup` by itself never creates anything in Gmail.
+- **Mac/Linux need PowerShell 7.** The tool is written for Windows PowerShell 5.1. On Mac or Linux, install PowerShell 7 and run `pwsh ./actiontrack.ps1 <command>`. This hasn't been tested on Mac or Linux yet.
+- **Other gaps:** only the top level of the notes folder is read (no subfolders); emails are plain text; `people.json` must use exactly the same full names as the notes.
 
 ## Files
 
 ```
 actiontrack.cmd       run this (wraps actiontrack.ps1)
 actiontrack.ps1       entry point
-lib/Commands.ps1      ingest, list, done, followup
+lib/Commands.ps1      ingest, list, done, assign, followup
 lib/Parser.ps1        reads one note
 lib/Dates.ps1         "by Friday" -> a real date
 lib/Owners.ps1        "Priya N." -> Priya Nair, or "(ambiguous)"
-lib/Store.ps1         data.json, duplicates, done/reopen rules
+lib/Store.ps1         data.json, duplicates, done/reopen rules, assign
 tests/Run-Tests.ps1   automatic checks
 people.example.json   copy to people.json and fill in
 notes/                sample meeting notes
+docs/                 sample output and conversation logs
+CLAUDE.md             instructions for Claude Code
+.claude/              Claude Code skill and settings for this project
 ```
 
 ## Tests
 
 ```
-powershell -NoProfile -ExecutionPolicy Bypass -File tests\Run-Tests.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File tests/Run-Tests.ps1
 ```
 
 The tests use a temporary data file and a fixed "today" of 2026-10-22.

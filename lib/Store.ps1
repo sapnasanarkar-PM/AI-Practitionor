@@ -28,6 +28,8 @@ function Read-Store {
         $item.sources = @($item.sources)
         [void]$store.Items.Add($item)
         $store.Index[(Get-ItemKey $item.owner $item.task_key)] = $item
+        # Reassigned items are still found under the owner the notes use.
+        if ($item.original_owner) { $store.Index[(Get-ItemKey $item.original_owner $item.task_key)] = $item }
     }
     return $store
 }
@@ -89,6 +91,17 @@ function Add-Mention($Store, [string]$Owner, [string]$Task, $Due, [string]$DueRa
     }
     if ($before -eq (ConvertTo-Json -InputObject $item -Depth 4 -Compress)) { return 'same' }
     return 'updated'
+}
+
+# Gives an item a new owner. Later ingests still match it by the owner the notes use.
+function Set-ItemOwner($Store, $Item, [string]$Owner) {
+    $existing = $Store.Index[(Get-ItemKey $Owner $Item.task_key)]
+    if ($existing -and $existing.id -ne $Item.id) {
+        throw "$Owner already has this task as item $($existing.id). Mark item $($Item.id) done instead."
+    }
+    if (-not $Item.original_owner) { $Item.original_owner = $Item.owner }
+    $Item.owner = $Owner
+    $Store.Index[(Get-ItemKey $Owner $Item.task_key)] = $Item
 }
 
 function Test-Overdue($Item, [datetime]$Today) {

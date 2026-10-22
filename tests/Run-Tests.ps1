@@ -1,6 +1,6 @@
 # Automatic checks. Run:  powershell -NoProfile -ExecutionPolicy Bypass -File tests\Run-Tests.ps1
 $root = Split-Path $PSScriptRoot -Parent
-. (Join-Path $root 'lib\Commands.ps1')
+. (Join-Path $root 'lib/Commands.ps1')
 
 $script:Failed = 0
 $script:Passed = 0
@@ -92,10 +92,20 @@ try {
     Assert-Equal $false (Test-Path (Join-Path $tmp 'drafts')) 'dry run writes nothing'
     '{ "Priya Nair": "priya@example.com" }' | Set-Content (Join-Path $tmp 'people.json')
     Assert-Equal 0 (Invoke-ActionTrack @('followup', 'priya nair') 6>$null) 'followup succeeds'
-    $draft = Get-Content (Join-Path $tmp 'drafts\priya-nair.json') -Raw | ConvertFrom-Json
+    $draft = Get-Content (Join-Path $tmp 'drafts/priya-nair.json') -Raw | ConvertFrom-Json
     Assert-Equal 'priya@example.com' $draft.to 'draft has email'
     Assert-Equal $true ($draft.body -like '*Collect beta feedback from Acme*') 'draft lists open item'
     Assert-Equal $false ($draft.body -like '*renewal one-pager*') 'draft skips done item'
+
+    # assign fixes an ambiguous owner, and re-ingest keeps the new owner without duplicates
+    $id = (Find-Task 'Priya (ambiguous)' 'circulate the go/no-go summary')[0].id
+    Assert-Equal 0 (Invoke-ActionTrack @('assign', "$id", 'Priya Shah') 6>$null) 'assign succeeds'
+    Assert-Equal 0 (Invoke-ActionTrack @('ingest', $notes) 6>$null) 'ingest after assign succeeds'
+    Assert-Equal 1 (Find-Task 'Priya Shah' 'circulate the go/no-go summary').Count 'assigned owner kept'
+    Assert-Equal 0 (Find-Task 'Priya (ambiguous)' 'circulate the go/no-go summary').Count 'no ambiguous copy after re-ingest'
+    Assert-Equal $count (Read-Store).Items.Count 'assign + re-ingest adds nothing'
+    Assert-Equal 1 (Invoke-ActionTrack @('assign', "$id", 'Priya') 6>$null) 'assign refuses ambiguous name'
+    Assert-Equal 1 (Invoke-ActionTrack @('assign', "$id", 'Nobody Here') 6>$null) 'assign refuses unknown name'
 
     # bad input never crashes
     Assert-Equal 1 (Invoke-ActionTrack @('done', '9999') 6>$null) 'unknown id'
