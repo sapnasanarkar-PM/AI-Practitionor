@@ -1,0 +1,5 @@
+# Personal data and generated files: never commit these.
+people.json
+data.json
+data.json.tmp
+drafts/
